@@ -5,13 +5,14 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import mongoose from "mongoose"; // ✅ ADDED: Missing import!
 
 // Import custom route files
 import authRoute from "./rout/authRout.js";
 import userRoute from "./rout/userRout.js";
 import dbConnection from "./db/dbConnect.js";
 
-// ✅ Load environment variables
+// ✅ Load environment variables FIRST
 dotenv.config();
 
 // 🌍 Create an Express application
@@ -23,17 +24,20 @@ const PORT = process.env.PORT || 3000;
 // 📡 Create an HTTP server
 const server = createServer(app);
 
-// 🌍 Allowed frontend origins for CORS
+// 🌍 Allowed frontend origins for CORS - ✅ FIXED: Removed duplicates
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
-  "https://video-meet-frontend-kappa.vercel.app"
-];
+  "https://video-meet-frontend-kappa.vercel.app",
+  process.env.FRONTEND_URL
+].filter((origin, index, self) => 
+  origin && self.indexOf(origin) === index // Remove duplicates and null/undefined
+);
 
 // ✅ Trust proxy (required for Vercel)
 app.set('trust proxy', 1);
 
-// ✅ SIMPLIFIED CORS Configuration - Single source of truth
+// ✅ SIMPLIFIED CORS Configuration
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (mobile apps, Postman, curl, etc.)
@@ -63,7 +67,7 @@ app.use((req, res, next) => {
 });
 
 // 🔧 Parse JSON and cookies
-app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
@@ -85,7 +89,8 @@ app.get("/api/health", (req, res) => {
   res.json({ 
     status: "ok", 
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    mongooseReady: mongoose.connection.readyState === 1
   });
 });
 
@@ -328,17 +333,29 @@ app.use((req, res) => {
   });
 });
 
-// 🏁 Start the server
+// 🏁 Start the server - ✅ CRITICAL: Connect to DB BEFORE starting server
 (async () => {
   try {
+    // ✅ WAIT for database connection to be fully established
     await dbConnection();
+    
+    // ✅ Verify connection is ready
+    if (mongoose.connection.readyState !== 1) {
+      throw new Error('MongoDB connection not ready after connection attempt');
+    }
+    
+    // ✅ Add a small delay to ensure connection is stable
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
     server.listen(PORT, () => {
       console.log(`✅ Server is running on port ${PORT}`);
       console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
+      console.log(`✅ MongoDB Connection State: ${mongoose.connection.readyState} (1 = Connected)`);
+      console.log(`✅ Database Name: ${mongoose.connection.db?.databaseName || 'Not available'}`);
     });
   } catch (error) {
-    console.error("❌ Failed to connect to the database:", error);
+    console.error("❌ Failed to start server:", error);
     process.exit(1);
   }
 })();
@@ -346,6 +363,10 @@ app.use((req, res) => {
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Rejection:', err);
+  // Don't exit in production, just log
+  if (process.env.NODE_ENV !== 'production') {
+    process.exit(1);
+  }
 });
 
 // Handle uncaught exceptions

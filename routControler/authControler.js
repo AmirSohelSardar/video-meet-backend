@@ -1,9 +1,18 @@
 import User from "../schema/userSchema.js"
 import bcrypt from "bcryptjs"
 import jwtToken from "../utils/jwtToken.js";
+import mongoose from "mongoose";
 
 export const SignUp = async (req, res) => {
     try {
+        // ✅ Check if MongoDB is connected
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({
+                success: false,
+                message: "Database connection not ready. Please try again."
+            });
+        }
+
         const { fullname, username, email, password, gender, profilepic } = req.body;
         
         // Validate required fields
@@ -11,6 +20,23 @@ export const SignUp = async (req, res) => {
             return res.status(400).json({ 
                 success: false, 
                 message: "All fields are required" 
+            });
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid email format"
+            });
+        }
+
+        // Validate password length
+        if (password.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: "Password must be at least 6 characters long"
             });
         }
 
@@ -61,20 +87,31 @@ export const SignUp = async (req, res) => {
         // Generate JWT token
         const token = jwtToken(newUser._id, res);
 
-        // Return response
+        // ✅ FIXED: Return response with user object
         res.status(201).json({
             success: true,
             message: "User registered successfully",
-            _id: newUser._id,
-            fullname: newUser.fullname,
-            username: newUser.username,
-            profilepic: newUser.profilepic,
-            email: newUser.email,
+            user: {
+                _id: newUser._id,
+                fullname: newUser.fullname,
+                username: newUser.username,
+                profilepic: newUser.profilepic,
+                email: newUser.email,
+            },
             token
         });
 
     } catch (error) {
         console.error("SignUp Error:", error);
+        
+        // Handle specific MongoDB errors
+        if (error.name === 'MongoTimeoutError' || error.name === 'MongoNetworkError') {
+            return res.status(503).json({
+                success: false,
+                message: "Database connection timeout. Please try again."
+            });
+        }
+        
         res.status(500).json({
             success: false,
             message: error.message || "Internal server error"
@@ -84,6 +121,14 @@ export const SignUp = async (req, res) => {
 
 export const Login = async (req, res) => {
     try {
+        // ✅ Check if MongoDB is connected
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({
+                success: false,
+                message: "Database connection not ready. Please try again."
+            });
+        }
+
         const { email, password } = req.body;
 
         // Validate required fields
@@ -95,7 +140,7 @@ export const Login = async (req, res) => {
         }
 
         // Find user
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email }).select("+password");
         if (!user) {
             return res.status(400).json({ 
                 success: false, 
@@ -115,20 +160,31 @@ export const Login = async (req, res) => {
         // Generate JWT token
         const token = jwtToken(user._id, res);
 
-        // Return response
+        // ✅ FIXED: Return response with user object (don't send password)
         res.status(200).json({
             success: true,
             message: "Successfully logged in",
-            _id: user._id,
-            fullname: user.fullname,
-            username: user.username,
-            profilepic: user.profilepic,
-            email: user.email,
+            user: {
+                _id: user._id,
+                fullname: user.fullname,
+                username: user.username,
+                profilepic: user.profilepic,
+                email: user.email,
+            },
             token
         });
 
     } catch (error) {
         console.error("Login Error:", error);
+        
+        // Handle specific MongoDB errors
+        if (error.name === 'MongoTimeoutError' || error.name === 'MongoNetworkError') {
+            return res.status(503).json({
+                success: false,
+                message: "Database connection timeout. Please try again."
+            });
+        }
+        
         res.status(500).json({
             success: false,
             message: error.message || "Internal server error"
