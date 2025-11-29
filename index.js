@@ -25,33 +25,26 @@ const server = createServer(app);
 
 // 🌍 Allowed frontend origins for CORS
 const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:5173', // For local development
-  'http://localhost:3000'  // Alternative local port
-]; 
-
-// Remove undefined/null values
-const filteredOrigins = allowedOrigins.filter(Boolean);
-
-console.log("✅ Allowed Origins:", filteredOrigins);
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://video-meet-frontend-kappa.vercel.app"   // ✅ Your real Vercel frontend
+];
 
 // 🔧 Middleware to handle CORS
-app.use(cors({
-  origin: function (origin, callback) { 
-    // Allow requests with no origin (like mobile apps, Postman, curl)
-    if (!origin) return callback(null, true);
-    
-    if (filteredOrigins.includes(origin)) { 
-      callback(null, true);
-    } else {
-      console.log("❌ CORS blocked origin:", origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.log("❌ Blocked by CORS:", origin);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
 // 🛠 Middleware for handling JSON requests and cookies
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
@@ -70,11 +63,17 @@ app.get("/ok", (req, res) => {
 const io = new Server(server, {
   pingTimeout: 60000,
   cors: {
-    origin: allowedOrigins[0],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
+
 console.log("[SUCCESS] Socket.io initialized with CORS");
+
+
+
+
 
 // 🟢 Store online users and active calls
 let onlineUsers = [];
