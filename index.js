@@ -45,29 +45,27 @@ app.use(
   })
 );
 
-// 🛠 Middleware for handling JSON requests and cookies
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
-app.use(cookieParser());
-
-// 🔗 Define API routes
-app.use("/api/auth", authRoute);
-app.use("/api/user", userRoute);
-
-// ✅ Test Route
-app.get("/ok", (req, res) => {
-  res.json({ message: "Server is running!" });
-});
-
-// 🔥 Initialize Socket.io
-const io = new Server(server, {
-  pingTimeout: 60000,
-  cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST"],
+// 🔧 Middleware to handle CORS
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.log("❌ Blocked by CORS:", origin);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
-  },
-});
+  })
+);
+
+// 🔥 FIX: Handle preflight OPTIONS request globally
+app.options("*", cors({
+  origin: allowedOrigins,
+  credentials: true
+}));
+
 
 console.log("[SUCCESS] Socket.io initialized with CORS");
 
