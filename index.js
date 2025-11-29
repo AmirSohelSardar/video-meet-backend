@@ -27,10 +27,10 @@ const server = createServer(app);
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
-  "https://video-meet-frontend-kappa.vercel.app"   // ✅ Your real Vercel frontend
+  "https://video-meet-frontend-kappa.vercel.app"
 ];
 
-// 🔧 Middleware to handle CORS
+// 🔧 CORS Middleware - ONLY ONCE!
 app.use(
   cors({
     origin: function (origin, callback) {
@@ -45,33 +45,35 @@ app.use(
   })
 );
 
-// 🔧 Middleware to handle CORS
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.log("❌ Blocked by CORS:", origin);
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-  })
-);
-
-// 🔥 FIX: Handle preflight OPTIONS request globally
+// 🔥 Handle preflight OPTIONS request
 app.options("*", cors({
   origin: allowedOrigins,
   credentials: true
 }));
 
+// 🔧 Parse JSON and cookies
+app.use(express.json());
+app.use(cookieParser());
+
+// 📍 API Routes
+app.use("/api/auth", authRoute);
+app.use("/api/user", userRoute);
+
+// 🏠 Test route
+app.get("/", (req, res) => {
+  res.send("Backend is running!");
+});
+
+// 🔌 Initialize Socket.io with CORS
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
 
 console.log("[SUCCESS] Socket.io initialized with CORS");
-
-
-
-
 
 // 🟢 Store online users and active calls
 let onlineUsers = [];
@@ -152,7 +154,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 📴 Handle call ending
   socket.on("call-ended", (data) => {
     io.to(data.to).emit("callEnded", {
       name: data.name,
@@ -162,7 +163,6 @@ io.on("connection", (socket) => {
     activeCalls.delete(data.to);
   });
 
-  // 🖥️ Screen sharing events
   socket.on("screenShareStarted", (data) => {
     io.to(data.to).emit("screenShareStarted", {
       from: socket.id
@@ -177,7 +177,6 @@ io.on("connection", (socket) => {
     console.log(`[INFO] User ${socket.id} stopped screen sharing with ${data.to}`);
   });
 
-  // 💬 LIVE CHAT EVENTS
   socket.on("send-message", (data) => {
     io.to(data.to).emit("receive-message", {
       from: socket.id,
@@ -188,7 +187,6 @@ io.on("connection", (socket) => {
     console.log(`[INFO] Message sent from ${data.sender} to ${data.to}`);
   });
 
-  // 🎬 YOUTUBE WATCH PARTY EVENTS
   socket.on("youtube-load", (data) => {
     io.to(data.to).emit("youtube-load", {
       from: socket.id,
@@ -214,7 +212,6 @@ io.on("connection", (socket) => {
     console.log(`[INFO] YouTube seeked to ${data.currentTime} by ${socket.id}`);
   });
 
-  // ✅ NEW: YouTube sync event for continuous synchronization
   socket.on("youtube-sync", (data) => {
     io.to(data.to).emit("youtube-sync", {
       from: socket.id,
@@ -225,7 +222,6 @@ io.on("connection", (socket) => {
     console.log(`[INFO] YouTube synced at ${data.currentTime}s by ${socket.id}`);
   });
 
-  // 🎵 MUSIC PLAYER EVENTS
   socket.on("music-load", (data) => {
     io.to(data.to).emit("music-load", {
       from: socket.id,
@@ -259,7 +255,6 @@ io.on("connection", (socket) => {
     console.log(`[INFO] Music volume changed to ${data.volume} by ${socket.id}`);
   });
 
-  // ❌ Handle user disconnecting - SINGLE HANDLER ONLY
   socket.on("disconnect", () => {
     const user = onlineUsers.find((u) => u.socketId === socket.id);
     if (user) {
@@ -269,7 +264,6 @@ io.on("connection", (socket) => {
         if (value.with === user.userId) activeCalls.delete(key);
       }
       
-      // Notify other user about media session end
       for (const onlineUser of onlineUsers) {
         if (onlineUser.userId !== user.userId) {
           io.to(onlineUser.socketId).emit("peer-disconnected", {
