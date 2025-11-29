@@ -294,7 +294,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// 🏁 Start the server
+// 🏁 Start the server yes 
 (async () => {
   try {
     await dbConnection();
