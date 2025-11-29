@@ -30,26 +30,39 @@ const allowedOrigins = [
   "https://video-meet-frontend-kappa.vercel.app"
 ];
 
-// 🔧 CORS Middleware - ONLY ONCE!
+// 🔧 MANUAL CORS HEADERS - This overrides everything
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
+// 🔧 CORS Middleware
 app.use(
   cors({
     origin: function (origin, callback) {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        console.log("❌ Blocked by CORS:", origin);
-        callback(new Error("Not allowed by CORS"));
+        callback(null, false);
       }
     },
     credentials: true,
   })
 );
-
-// 🔥 Handle preflight OPTIONS request
-app.options("*", cors({
-  origin: allowedOrigins,
-  credentials: true
-}));
 
 // 🔧 Parse JSON and cookies
 app.use(express.json());
