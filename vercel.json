@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "name": "video-meet-backend",
   "builds": [
     {
       "src": "index.js",
@@ -15,7 +16,7 @@
   ],
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/api/(.*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Credentials",
@@ -27,14 +28,16 @@
         },
         {
           "key": "Access-Control-Allow-Methods",
-          "value": "GET,OPTIONS,PATCH,DELETE,POST,PUT"
+          "value": "GET,POST,PUT,DELETE,PATCH,OPTIONS"
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
+          "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, Cookie"
         }
       ]
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
-

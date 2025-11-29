@@ -30,42 +30,41 @@ const allowedOrigins = [
   "https://video-meet-frontend-kappa.vercel.app"
 ];
 
-// 🔧 MANUAL CORS HEADERS - This overrides everything
+// ✅ Trust proxy (required for Vercel)
+app.set('trust proxy', 1);
+
+// ✅ SIMPLIFIED CORS Configuration - Single source of truth
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cookie'],
+  exposedHeaders: ['Set-Cookie'],
+  maxAge: 86400, // 24 hours
+}));
+
+// ✅ Handle preflight requests explicitly
+app.options('*', cors());
+
+// ✅ Add CORS headers middleware (backup)
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  
-  // Handle preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
+  res.header('Access-Control-Allow-Credentials', 'true');
   next();
 });
 
-// 🔧 CORS Middleware
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(null, false);
-      }
-    },
-    credentials: true,
-  })
-);
-
 // 🔧 Parse JSON and cookies
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // 📍 API Routes
@@ -74,7 +73,20 @@ app.use("/api/user", userRoute);
 
 // 🏠 Test route
 app.get("/", (req, res) => {
-  res.send("Backend is running!");
+  res.json({ 
+    success: true, 
+    message: "Backend is running!",
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ✅ Health check endpoint
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 // 🔌 Initialize Socket.io with CORS
@@ -82,8 +94,13 @@ const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
     methods: ["GET", "POST"],
-    credentials: true
-  }
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
+  },
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 console.log("[SUCCESS] Socket.io initialized with CORS");
@@ -118,6 +135,7 @@ io.on("connection", (socket) => {
     }
 
     io.emit("online-users", onlineUsers);
+    console.log(`[INFO] User ${user.name} joined. Online users: ${onlineUsers.length}`);
   });
 
   socket.on("callToUser", (data) => {
@@ -232,7 +250,6 @@ io.on("connection", (socket) => {
       currentTime: data.currentTime,
       isPlaying: data.isPlaying
     });
-    console.log(`[INFO] YouTube synced at ${data.currentTime}s by ${socket.id}`);
   });
 
   socket.on("music-load", (data) => {
@@ -290,19 +307,49 @@ io.on("connection", (socket) => {
     io.emit("online-users", onlineUsers);
     socket.broadcast.emit("discounnectUser", { disUser: socket.id });
 
-    console.log(`[INFO] Disconnected: ${socket.id}`);
+    console.log(`[INFO] Disconnected: ${socket.id}. Online users: ${onlineUsers.length}`);
   });
 });
 
-// 🏁 Start the server yes 
+// ❌ Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err.message);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error'
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Route not found'
+  });
+});
+
+// 🏁 Start the server
 (async () => {
   try {
     await dbConnection();
     server.listen(PORT, () => {
       console.log(`✅ Server is running on port ${PORT}`);
+      console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`✅ Allowed origins: ${allowedOrigins.join(', ')}`);
     });
   } catch (error) {
     console.error("❌ Failed to connect to the database:", error);
     process.exit(1);
   }
 })();
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
