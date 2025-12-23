@@ -10,7 +10,7 @@
   "engines": {
     "node": "20.x"
   },
-  "author": "slrtech",
+  "author": "Video Meet",
   "license": "ISC",
   "description": "",
   "dependencies": {
