@@ -3,19 +3,27 @@ import User from '../schema/userSchema.js';
 
 const isLogin = async (req, res, next) => {
     try {
-        const token =
-            req.cookies.jwt ||
-            req.headers?.cookie
-                ?.split("; ")
-                .find((cookie) => cookie.startsWith("jwt="))
-                ?.split("=")[1];
+      // ✅ FIX: Check Authorization header FIRST (since frontend uses this)
+const authHeader = req.headers.authorization;
+const token = authHeader?.startsWith('Bearer ') 
+    ? authHeader.substring(7) 
+    : req.cookies.jwt || 
+      req.headers?.cookie
+          ?.split("; ")
+          .find((cookie) => cookie.startsWith("jwt="))
+          ?.split("=")[1];
 
-        if (!token) {
-            return res.status(401).json({
-                success: false,
-                message: "Unauthorized - No token provided",
-            });
-        }
+// ✅ ADD: Debug logging
+console.log('isLogin check - Has Authorization header:', !!authHeader);
+console.log('isLogin check - Has cookie:', !!req.cookies.jwt);
+console.log('isLogin check - Token found:', !!token);
+
+if (!token) {
+    return res.status(401).json({
+        success: false,
+        message: "Unauthorized - No token provided",
+    });
+}
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 

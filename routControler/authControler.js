@@ -158,21 +158,25 @@ export const Login = async (req, res) => {
         }
 
         // Generate JWT token
-        const token = jwtToken(user._id, res);
+        // Generate JWT token
+const token = jwtToken(user._id, res);
 
-        // ✅ FIXED: Return response with user object (don't send password)
-        res.status(200).json({
-            success: true,
-            message: "Successfully logged in",
-            user: {
-                _id: user._id,
-                fullname: user.fullname,
-                username: user.username,
-                profilepic: user.profilepic,
-                email: user.email,
-            },
-            token
-        });
+// ✅ ADD: Log what we're sending
+console.log('Login successful - sending token:', token.substring(0, 20) + '...');
+
+// ✅ FIXED: Return response with user object (don't send password)
+res.status(200).json({
+    success: true,
+    message: "Successfully logged in",
+    user: {
+        _id: user._id,
+        fullname: user.fullname,
+        username: user.username,
+        profilepic: user.profilepic,
+        email: user.email,
+    },
+    token
+});
 
     } catch (error) {
         console.error("Login Error:", error);
